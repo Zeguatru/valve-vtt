@@ -36,9 +36,23 @@ let db = loadDB();
 setInterval(() => saveDB(db), 10000);
 
 // ── HTTP SERVER (serve os arquivos do frontend) ─────
+// Detecta o caminho correto automaticamente (local e Railway)
+function findFrontendDir() {
+  const candidates = [
+    path.join(__dirname, '..', 'frontend'),
+    path.join(process.cwd(), 'frontend'),
+    path.join(__dirname, 'frontend'),
+  ];
+  for (const dir of candidates) {
+    try { if (fs.existsSync(path.join(dir, 'index.html'))) return dir; } catch(e) {}
+  }
+  return candidates[0];
+}
+const frontendDir = findFrontendDir();
+console.log('Frontend dir:', frontendDir);
+
 const server = http.createServer((req, res) => {
-  const frontendDir = path.join(__dirname, '..', 'frontend');
-  let urlPath = req.url.split('?')[0]; // ignora query string
+  let urlPath = req.url.split('?')[0];
   let filePath = path.join(frontendDir, urlPath === '/' ? 'index.html' : urlPath);
 
   // Segurança: impede path traversal
