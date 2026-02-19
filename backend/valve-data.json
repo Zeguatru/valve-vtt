@@ -1,0 +1,26 @@
+{
+  "rooms": {
+    "VALVE-QXAQ": {
+      "masterName": "Quanxi",
+      "sessionName": "teste",
+      "createdAt": 1771473058638,
+      "players": {
+        "mlsxedx692cnv": {
+          "name": "Nigga",
+          "fichaData": {}
+        }
+      }
+    },
+    "VALVE-YNMF": {
+      "masterName": "Antegeuhcj",
+      "sessionName": "teste 2",
+      "createdAt": 1771473962405,
+      "players": {
+        "mlsxwg3udifpw": {
+          "name": "quanxi",
+          "fichaData": {}
+        }
+      }
+    }
+  }
+}

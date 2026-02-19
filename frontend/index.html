@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VALVE — Virtual Tabletop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   VALVE VTT — STEAMPUNK INDUSTRIAL VICTORIAN
+   ═══════════════════════════════════════════════ */
+
+:root {
+  --gold:        #C9A84C;
+  --gold-bright: #E8C96A;
+  --gold-dark:   #8B6914;
+  --copper:      #B87333;
+  --copper-dark: #7A4A1E;
+  --brass:       #D4A017;
+  --iron:        #2A2A2A;
+  --iron-mid:    #1A1A1A;
+  --iron-dark:   #0D0D0D;
+  --rust:        #8B2E0F;
+  --steam:       rgba(200,180,140,0.08);
+  --leather:     #3D2B1F;
+  --parchment:   #F0E6C8;
+  --parchment-dark: #D4C4A0;
+  --green-valve: #4A7C59;
+  --red-danger:  #8B1A1A;
+  --glow-gold:   0 0 20px rgba(201,168,76,0.4), 0 0 60px rgba(201,168,76,0.15);
+  --glow-copper: 0 0 20px rgba(184,115,51,0.4);
+  --shadow-deep: 0 20px 60px rgba(0,0,0,0.8);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--iron-dark);
+  color: var(--parchment);
+  font-family: 'IM Fell English', serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* ── TEXTURE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════
+   GEAR ANIMATIONS
+══════════════════════════════════ */
+@keyframes gearSpin       { to { transform: rotate(360deg); } }
+@keyframes gearSpinRev    { to { transform: rotate(-360deg); } }
+@keyframes steamPuff      { 0%,100%{opacity:0;transform:translateY(0) scale(1)} 50%{opacity:.6;transform:translateY(-30px) scale(1.4)} }
+@keyframes fadeInUp       { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn         { from{opacity:0} to{opacity:1} }
+@keyframes letterOpen     { from{transform:perspective(800px) rotateX(0deg)} to{transform:perspective(800px) rotateX(-160deg)} }
+@keyframes letterClose    { from{transform:perspective(800px) rotateX(-160deg)} to{transform:perspective(800px) rotateX(0deg)} }
+@keyframes flickerGold    { 0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:.7} 94%{opacity:1} 97%{opacity:.85} }
+@keyframes pulseGlow      { 0%,100%{box-shadow:var(--glow-gold)} 50%{box-shadow:0 0 40px rgba(201,168,76,0.7), 0 0 80px rgba(201,168,76,0.3)} }
+@keyframes slideInLeft    { from{transform:translateX(-100%);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes slideInRight   { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes rivetPulse     { 0%,100%{box-shadow:0 0 4px rgba(201,168,76,.3)} 50%{box-shadow:0 0 12px rgba(201,168,76,.8)} }
+@keyframes transitionCogs { 0%{transform:translateX(-100%) rotate(0deg)} 100%{transform:translateX(100vw) rotate(720deg)} }
+
+/* ══════════════════════════════════
+   SVG GEAR COMPONENT
+══════════════════════════════════ */
+.gear-svg {
+  display: inline-block;
+  animation: gearSpin 8s linear infinite;
+  fill: var(--gold);
+  opacity: 0.7;
+}
+.gear-svg.reverse { animation: gearSpinRev 6s linear infinite; }
+.gear-svg.slow    { animation-duration: 16s; }
+.gear-svg.fast    { animation-duration: 4s; }
+
+/* ══════════════════════════════════
+   TRANSITION OVERLAY
+══════════════════════════════════ */
+#transition-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--iron-dark);
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+#transition-overlay.active { opacity: 1; pointer-events: all; }
+.transition-gears {
+  display: flex; gap: 20px; align-items: center;
+}
+
+/* ══════════════════════════════════
+   SCREENS
+══════════════════════════════════ */
+.screen {
+  display: none;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+.screen.active { display: flex; flex-direction: column; }
+
+/* ══════════════════════════════════
+   HEADER / NAV BAR
+══════════════════════════════════ */
+.vtt-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 32px;
+  background: linear-gradient(180deg, rgba(13,13,13,0.98) 0%, rgba(20,15,5,0.95) 100%);
+  border-bottom: 2px solid var(--gold-dark);
+  position: relative; z-index: 10;
+}
+.vtt-header::after {
+  content: '';
+  position: absolute; bottom: -6px; left: 0; right: 0; height: 4px;
+  background: repeating-linear-gradient(90deg, var(--gold) 0, var(--gold) 6px, transparent 6px, transparent 12px);
+}
+.header-logo {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 1.8rem; font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 6px;
+  text-shadow: 0 0 20px rgba(201,168,76,0.5);
+  animation: flickerGold 8s infinite;
+}
+.header-logo span { color: var(--copper); font-size: 0.7em; }
+
+/* ══════════════════════════════════
+   LANDING SCREEN
+══════════════════════════════════ */
+#screen-landing {
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 60px;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(201,168,76,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(184,115,51,0.06) 0%, transparent 50%),
+    var(--iron-dark);
+}
+
+/* ── FLOATING GEARS BACKGROUND ── */
+.bg-gears {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden;
+}
+.bg-gear {
+  position: absolute; opacity: 0.04;
+  fill: var(--gold);
+}
+.bg-gear-1 { top:-80px; left:-80px; width:400px; animation: gearSpin 40s linear infinite; }
+.bg-gear-2 { bottom:-100px; right:-100px; width:500px; animation: gearSpinRev 50s linear infinite; }
+.bg-gear-3 { top:40%; left:60%; width:200px; animation: gearSpin 25s linear infinite; }
+
+/* ── STEAM PARTICLES ── */
+.steam-particle {
+  position: fixed; width: 8px; height: 8px;
+  background: radial-gradient(circle, rgba(201,168,76,0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none; z-index: 0;
+  animation: steamPuff 4s ease-in-out infinite;
+}
+
+/* ══════════════════════════════════
+   THE LETTER
+══════════════════════════════════ */
+.letter-container {
+  width: 100%; max-width: 640px;
+  margin: 0 auto 48px;
+  perspective: 1200px;
+  position: relative; z-index: 2;
+  animation: fadeInUp 1s ease both;
+}
+
+.envelope-wrap {
+  position: relative;
+}
+
+/* Envelope body */
+.envelope {
+  background: linear-gradient(145deg, #2C1F0E 0%, #1A1208 50%, #241A0A 100%);
+  border: 2px solid var(--gold-dark);
+  border-radius: 4px;
+  padding: 0;
+  position: relative;
+  box-shadow: var(--shadow-deep), inset 0 1px 0 rgba(201,168,76,0.2);
+  overflow: visible;
+}
+.envelope::before {
+  content: '';
+  position: absolute; inset: 4px;
+  border: 1px solid rgba(201,168,76,0.15);
+  border-radius: 2px; pointer-events: none;
+  z-index: 0;
+}
+
+/* Envelope flap — sits ABOVE the envelope, anchored to its top edge */
+.envelope-flap {
+  width: calc(100% + 4px);
+  height: 160px;
+  position: absolute;
+  top: -2px; left: -2px;
+  transform-origin: top center;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(160deg, #2C1F0E 0%, #1A1208 60%, #2C1F0E 100%);
+  border: 2px solid var(--gold-dark);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  cursor: pointer;
+  z-index: 10;
+}
+.envelope-flap.open {
+  transform: perspective(800px) rotateX(-170deg);
+}
+
+/* Wax seal */
+.wax-seal {
+  position: absolute; left: 50%; top: 60%;
+  transform: translate(-50%, -50%);
+  width: 64px; height: 64px;
+  background: radial-gradient(circle at 40% 35%, #C0392B 0%, #8B1A1A 50%, #5A0E0E 100%);
+  border-radius: 50%;
+  border: 2px solid #A93226;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,100,100,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 1.4rem; color: rgba(255,220,200,0.9);
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 5;
+}
+.wax-seal:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,100,100,0.3), 0 0 20px rgba(139,26,26,0.4);
+}
+
+/* Letter content */
+.letter-body {
+  padding: 0 32px;
+  padding-top: 168px;
+  max-height: 168px;
+  overflow: hidden;
+  transition: max-height 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.letter-body.open {
+  max-height: 1100px;
+  padding-bottom: 32px;
+}
+
+.letter-paper {
+  background: linear-gradient(180deg, #F0E6C8 0%, #E8D8B0 100%);
+  color: #2A1A08;
+  padding: 40px 44px;
+  border-radius: 2px;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 0 60px rgba(0,0,0,0.05);
+  font-family: 'IM Fell English', serif;
+  font-size: 1rem; line-height: 1.8;
+}
+.letter-paper::before {
+  content: '';
+  position: absolute; left: 60px; top: 0; bottom: 0; width: 1px;
+  background: rgba(150,100,50,0.2);
+}
+/* Ruled lines */
+.letter-paper::after {
+  content: '';
+  position: absolute; inset: 40px 44px;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0px, transparent 27px,
+    rgba(150,100,50,0.12) 27px, rgba(150,100,50,0.12) 28px
+  );
+  pointer-events: none;
+}
+
+.letter-greeting { font-style: italic; color: #5A3A1A; margin-bottom: 16px; }
+.letter-title {
+  font-family: 'Cinzel', serif; font-size: 1.6rem; font-weight: 700;
+  color: #8B2E0F; text-align: center; margin-bottom: 24px;
+  letter-spacing: 4px;
+}
+.letter-text { margin-bottom: 16px; position: relative; z-index: 1; }
+.letter-sign { text-align: right; margin-top: 24px; font-style: italic; color: #5A3A1A; }
+
+/* Ornamental divider */
+.letter-divider {
+  text-align: center; margin: 20px 0;
+  font-size: 0.8rem; color: var(--gold-dark); opacity: 0.6;
+  letter-spacing: 6px;
+}
+
+/* Toggle button */
+.btn-toggle-letter {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 0 auto 20px;
+  background: none; border: none; cursor: pointer;
+  font-family: 'Cinzel', serif; font-size: 0.85rem;
+  color: var(--gold-dark); letter-spacing: 3px;
+  transition: color 0.2s;
+}
+.btn-toggle-letter:hover { color: var(--gold); }
+.btn-toggle-letter svg { width: 16px; height: 16px; fill: currentColor; }
+
+/* ══════════════════════════════════
+   MAIN BUTTONS (JOGADOR / MESTRE)
+══════════════════════════════════ */
+.landing-buttons {
+  display: flex; gap: 40px; justify-content: center;
+  padding: 20px 0 60px;
+  position: relative; z-index: 2;
+  animation: fadeInUp 1.2s ease 0.4s both;
+}
+
+.btn-main {
+  position: relative;
+  width: 220px; height: 280px;
+  background: linear-gradient(145deg, #1C1208 0%, #100C04 100%);
+  border: 2px solid var(--gold-dark);
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px;
+  overflow: hidden;
+  transition: border-color 0.3s, transform 0.2s;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px);
+}
+
+.btn-main::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.12) 0%, transparent 70%);
+  opacity: 0; transition: opacity 0.3s;
+}
+.btn-main:hover { border-color: var(--gold); transform: translateY(-4px); }
+.btn-main:hover::before { opacity: 1; }
+
+/* Corner rivets */
+.btn-main::after {
+  content: '';
+  position: absolute; inset: 8px;
+  border: 1px solid rgba(201,168,76,0.15);
+  pointer-events: none;
+}
+
+.btn-main-icon {
+  width: 80px; height: 80px;
+  fill: var(--gold);
+  filter: drop-shadow(0 0 8px rgba(201,168,76,0.4));
+  transition: filter 0.3s, transform 0.3s;
+}
+.btn-main:hover .btn-main-icon {
+  filter: drop-shadow(0 0 16px rgba(201,168,76,0.7));
+  transform: scale(1.08);
+}
+
+.btn-main-label {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 1rem; font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 4px;
+  text-align: center;
+}
+.btn-main-sub {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.65rem; color: var(--gold-dark);
+  letter-spacing: 2px; text-align: center;
+}
+
+/* Rivet corners on main buttons */
+.rivet {
+  position: absolute; width: 10px; height: 10px;
+  background: radial-gradient(circle at 35% 35%, var(--gold-bright), var(--gold-dark));
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  animation: rivetPulse 3s ease-in-out infinite;
+}
+.rivet-tl { top: 10px; left: 10px; }
+.rivet-tr { top: 10px; right: 10px; animation-delay: 0.5s; }
+.rivet-bl { bottom: 10px; left: 10px; animation-delay: 1s; }
+.rivet-br { bottom: 10px; right: 10px; animation-delay: 1.5s; }
+
+/* ══════════════════════════════════
+   ENTRY SCREENS (JOGADOR / MESTRE)
+══════════════════════════════════ */
+#screen-player, #screen-master {
+  align-items: center; justify-content: center;
+  padding: 60px 20px;
+  background:
+    radial-gradient(ellipse at center top, rgba(201,168,76,0.05) 0%, transparent 60%),
+    var(--iron-dark);
+}
+
+.entry-panel {
+  width: 100%; max-width: 480px;
+  background: linear-gradient(145deg, rgba(28,18,8,0.98) 0%, rgba(16,12,4,0.98) 100%);
+  border: 2px solid var(--gold-dark);
+  padding: 48px 48px 40px;
+  position: relative;
+  box-shadow: var(--shadow-deep), var(--glow-gold);
+  animation: fadeInUp 0.6s ease;
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+}
+.entry-panel::before {
+  content: '';
+  position: absolute; inset: 6px;
+  border: 1px solid rgba(201,168,76,0.1);
+  pointer-events: none;
+}
+
+.panel-title {
+  font-family: 'Cinzel Decorative', serif;
+  font-size: 1.4rem; font-weight: 700;
+  color: var(--gold); letter-spacing: 4px;
+  text-align: center; margin-bottom: 8px;
+  text-shadow: 0 0 20px rgba(201,168,76,0.3);
+}
+.panel-subtitle {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.7rem; color: var(--gold-dark);
+  text-align: center; letter-spacing: 3px; margin-bottom: 36px;
+}
+
+/* Ornamental top gear on panels */
+.panel-gear-top {
+  position: absolute; top: -28px; left: 50%;
+  transform: translateX(-50%);
+  fill: var(--gold); width: 56px; height: 56px;
+  animation: gearSpin 10s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(201,168,76,0.5));
+}
+
+/* Fields */
+.field-group { margin-bottom: 24px; }
+.field-label {
+  display: block; margin-bottom: 6px;
+  font-family: 'Cinzel', serif; font-size: 0.7rem;
+  color: var(--gold-dark); letter-spacing: 3px;
+}
+.field-input {
+  width: 100%; padding: 14px 18px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid var(--gold-dark);
+  border-radius: 0;
+  color: var(--parchment);
+  font-family: 'Special Elite', monospace; font-size: 0.95rem;
+  letter-spacing: 1px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+}
+.field-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 16px rgba(201,168,76,0.2), inset 0 0 8px rgba(201,168,76,0.05);
+}
+.field-input::placeholder { color: rgba(201,168,76,0.2); }
+
+/* Action button */
+.btn-action {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(145deg, var(--gold-dark) 0%, #6B5010 50%, var(--gold-dark) 100%);
+  border: 1px solid var(--gold);
+  color: var(--iron-dark);
+  font-family: 'Cinzel', serif; font-size: 0.85rem; font-weight: 700;
+  letter-spacing: 4px;
+  cursor: pointer;
+  position: relative; overflow: hidden;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+}
+.btn-action::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+}
+.btn-action:hover {
+  background: linear-gradient(145deg, var(--gold) 0%, var(--brass) 50%, var(--gold) 100%);
+  box-shadow: var(--glow-gold);
+  transform: translateY(-1px);
+}
+.btn-action:active { transform: translateY(1px); }
+
+.btn-back {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 20px;
+  background: none; border: none; cursor: pointer;
+  font-family: 'Cinzel', serif; font-size: 0.65rem;
+  color: var(--gold-dark); letter-spacing: 3px;
+  transition: color 0.2s;
+  width: 100%; justify-content: center;
+}
+.btn-back:hover { color: var(--gold); }
+
+/* Error message */
+.field-error {
+  font-size: 0.7rem; color: #C0392B; letter-spacing: 1px;
+  margin-top: 4px; display: none; font-family: 'Special Elite', monospace;
+}
+.field-error.visible { display: block; }
+
+/* ══════════════════════════════════
+   MASTER PANEL SCREEN
+══════════════════════════════════ */
+#screen-master-room {
+  flex-direction: column;
+}
+
+.master-layout {
+  display: flex; flex: 1; overflow: hidden;
+  height: calc(100vh - 60px);
+}
+
+/* LEFT SIDEBAR — player list */
+.master-sidebar {
+  width: 300px; min-width: 260px;
+  background: linear-gradient(180deg, #0D0D0D 0%, #100C04 100%);
+  border-right: 2px solid var(--gold-dark);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: slideInLeft 0.5s ease;
+  position: relative;
+}
+.master-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: -6px; bottom: 0; width: 4px;
+  background: repeating-linear-gradient(180deg, var(--gold-dark) 0, var(--gold-dark) 4px, transparent 4px, transparent 8px);
+}
+
+.sidebar-header {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(201,168,76,0.2);
+  background: rgba(0,0,0,0.3);
+}
+.sidebar-title {
+  font-family: 'Cinzel', serif; font-size: 0.75rem;
+  color: var(--gold); letter-spacing: 3px;
+}
+.sidebar-code {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.code-label {
+  font-family: 'Special Elite', monospace; font-size: 0.65rem;
+  color: var(--gold-dark); letter-spacing: 2px;
+}
+.code-value {
+  font-family: 'Cinzel', serif; font-size: 1rem; font-weight: 700;
+  color: var(--gold-bright); letter-spacing: 4px;
+  text-shadow: 0 0 12px rgba(201,168,76,0.5);
+}
+.btn-copy-code {
+  background: none; border: 1px solid var(--gold-dark);
+  padding: 3px 8px; cursor: pointer; color: var(--gold-dark);
+  font-size: 0.6rem; font-family: 'Cinzel', serif; letter-spacing: 2px;
+  transition: all 0.2s;
+}
+.btn-copy-code:hover { border-color: var(--gold); color: var(--gold); }
+
+.session-name-display {
+  margin-top: 6px;
+  font-family: 'IM Fell English', serif; font-style: italic;
+  font-size: 0.8rem; color: var(--parchment-dark); opacity: 0.7;
+}
+
+/* Connection status */
+.connection-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 20px;
+  background: rgba(0,0,0,0.4); border-bottom: 1px solid rgba(201,168,76,0.1);
+}
+.conn-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #2ECC71; box-shadow: 0 0 8px rgba(46,204,113,0.6);
+}
+.conn-dot.disconnected { background: #C0392B; box-shadow: 0 0 8px rgba(192,57,43,0.6); }
+.conn-label { font-family: 'Special Elite', monospace; font-size: 0.65rem; color: var(--gold-dark); letter-spacing: 2px; }
+.conn-count { margin-left: auto; font-family: 'Cinzel', serif; font-size: 0.7rem; color: var(--gold-dark); }
+
+/* Player list */
+.player-list { flex: 1; overflow-y: auto; padding: 12px 0; }
+.player-list::-webkit-scrollbar { width: 4px; }
+.player-list::-webkit-scrollbar-track { background: transparent; }
+.player-list::-webkit-scrollbar-thumb { background: var(--gold-dark); }
+
+.player-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px; cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all 0.2s; position: relative;
+}
+.player-item:hover { background: rgba(201,168,76,0.05); border-left-color: var(--gold-dark); }
+.player-item.active { background: rgba(201,168,76,0.08); border-left-color: var(--gold); }
+
+.player-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--gold-dark);
+  background: linear-gradient(135deg, var(--leather), var(--iron-mid));
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cinzel', serif; font-size: 1rem; color: var(--gold);
+  overflow: hidden; flex-shrink: 0;
+}
+.player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.player-info { flex: 1; min-width: 0; }
+.player-name {
+  font-family: 'Cinzel', serif; font-size: 0.78rem; color: var(--parchment);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.player-status {
+  font-family: 'Special Elite', monospace; font-size: 0.6rem; color: var(--gold-dark);
+  letter-spacing: 1px;
+}
+
+.player-online-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #2ECC71; box-shadow: 0 0 6px rgba(46,204,113,0.5);
+  flex-shrink: 0;
+}
+.player-online-dot.offline { background: #7F8C8D; box-shadow: none; }
+
+.no-players {
+  padding: 40px 20px; text-align: center;
+  font-family: 'IM Fell English', serif; font-style: italic;
+  color: var(--gold-dark); opacity: 0.5; font-size: 0.85rem;
+}
+
+/* ── MAIN CONTENT ── */
+.master-content {
+  flex: 1; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: rgba(8,6,2,0.5);
+  animation: slideInRight 0.5s ease;
+}
+
+.content-header {
+  padding: 16px 28px;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid rgba(201,168,76,0.15);
+  display: flex; align-items: center; gap: 16px;
+}
+.viewing-label {
+  font-family: 'Cinzel', serif; font-size: 0.7rem;
+  color: var(--gold-dark); letter-spacing: 3px;
+}
+.viewing-name {
+  font-family: 'Cinzel Decorative', serif; font-size: 0.9rem;
+  color: var(--gold);
+}
+.live-badge {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid rgba(46,204,113,0.3);
+  background: rgba(46,204,113,0.05);
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ECC71; animation: rivetPulse 1.5s infinite; }
+.live-text { font-family: 'Special Elite', monospace; font-size: 0.6rem; color: #2ECC71; letter-spacing: 2px; }
+
+.ficha-frame-wrap {
+  flex: 1; overflow: hidden; position: relative;
+}
+#masterFichaDisplay {
+  position: absolute; inset: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-dark) transparent;
+}
+#masterFichaDisplay::-webkit-scrollbar { width: 6px; }
+#masterFichaDisplay::-webkit-scrollbar-thumb { background: var(--gold-dark); }
+
+.ficha-frame-wrap::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 1;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+}
+.ficha-iframe {
+  width: 100%; height: 100%; border: none;
+  background: var(--iron-dark);
+}
+
+.no-player-selected {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 24px; opacity: 0.3;
+}
+.no-player-selected svg { width: 80px; height: 80px; fill: var(--gold); }
+.no-player-selected p {
+  font-family: 'IM Fell English', serif; font-style: italic;
+  color: var(--gold); font-size: 1rem; letter-spacing: 2px;
+}
+
+/* ══════════════════════════════════
+   PLAYER ROOM SCREEN
+══════════════════════════════════ */
+#screen-player-room {
+  flex-direction: column;
+}
+
+.player-layout {
+  display: flex; flex: 1; overflow: hidden;
+  height: calc(100vh - 60px);
+}
+
+.player-sidebar {
+  width: 220px; min-width: 200px;
+  background: linear-gradient(180deg, #0D0D0D 0%, #100C04 100%);
+  border-right: 2px solid var(--gold-dark);
+  display: flex; flex-direction: column;
+  animation: slideInLeft 0.5s ease;
+  padding: 20px 0;
+  position: relative;
+}
+.player-sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: -6px; bottom: 0; width: 4px;
+  background: repeating-linear-gradient(180deg, var(--gold-dark) 0, var(--gold-dark) 4px, transparent 4px, transparent 8px);
+}
+
+.sidebar-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(201,168,76,0.1);
+}
+.sidebar-section-title {
+  font-family: 'Cinzel', serif; font-size: 0.6rem;
+  color: var(--gold-dark); letter-spacing: 3px; margin-bottom: 10px;
+}
+
+.room-info-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.room-info-label { font-family: 'Special Elite', monospace; font-size: 0.6rem; color: var(--gold-dark); letter-spacing: 1px; }
+.room-info-value { font-family: 'Cinzel', serif; font-size: 0.8rem; color: var(--parchment); }
+
+.online-list { padding: 0 16px; flex: 1; }
+.online-list-title {
+  font-family: 'Cinzel', serif; font-size: 0.6rem;
+  color: var(--gold-dark); letter-spacing: 3px; margin: 12px 0 8px;
+}
+.online-person {
+  display: flex; align-items: center; gap: 8px; padding: 6px 0;
+  font-family: 'Special Elite', monospace; font-size: 0.7rem; color: var(--parchment-dark);
+}
+
+.player-main {
+  flex: 1; overflow: hidden; display: flex; flex-direction: column;
+  animation: slideInRight 0.5s ease;
+}
+
+/* ══════════════════════════════════
+   DECORATIVE ELEMENTS
+══════════════════════════════════ */
+.ornament-divider {
+  display: flex; align-items: center; gap: 12px; margin: 12px 0;
+}
+.ornament-divider::before,
+.ornament-divider::after {
+  content: ''; flex: 1;
+  height: 1px; background: linear-gradient(90deg, transparent, var(--gold-dark), transparent);
+}
+.ornament-divider-icon { fill: var(--gold-dark); opacity: 0.6; }
+
+/* Performance mode toggle */
+.perf-toggle {
+  position: fixed; bottom: 20px; right: 20px; z-index: 100;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(10,8,3,0.9); border: 1px solid var(--gold-dark);
+  padding: 8px 12px; cursor: pointer;
+  transition: all 0.2s;
+}
+.perf-toggle:hover { border-color: var(--gold); }
+.perf-toggle-label { font-family: 'Special Elite', monospace; font-size: 0.6rem; color: var(--gold-dark); letter-spacing: 2px; }
+.perf-checkbox { accent-color: var(--gold); }
+
+/* ══════════════════════════════════
+   PERFORMANCE MODE
+══════════════════════════════════ */
+body.perf-mode .gear-svg,
+body.perf-mode .bg-gear,
+body.perf-mode .steam-particle { animation: none; opacity: 0.3; }
+body.perf-mode .btn-main { transition: none; }
+body.perf-mode * { transition-duration: 0ms !important; animation: none !important; }
+body.perf-mode .gear-svg { display: none; }
+
+/* ══════════════════════════════════
+   NOTIFICATION TOAST
+══════════════════════════════════ */
+.toast-container {
+  position: fixed; top: 80px; right: 20px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: linear-gradient(135deg, rgba(28,18,8,0.98) 0%, rgba(13,10,3,0.98) 100%);
+  border: 1px solid var(--gold-dark);
+  padding: 12px 20px;
+  font-family: 'Special Elite', monospace; font-size: 0.75rem;
+  color: var(--parchment);
+  animation: slideInRight 0.3s ease;
+  box-shadow: var(--shadow-deep);
+  max-width: 280px;
+}
+.toast.success { border-color: #2ECC71; }
+.toast.error   { border-color: #C0392B; }
+
+/* ══════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════ */
+@media (max-width: 768px) {
+  .landing-buttons { flex-direction: column; align-items: center; gap: 24px; }
+  .btn-main { width: 280px; height: 200px; }
+  .master-sidebar, .player-sidebar { width: 200px; min-width: 180px; }
+  .letter-paper { padding: 24px 20px; }
+  .letter-body.open { padding: 24px 20px; }
+}
+
+@media (max-width: 480px) {
+  .master-layout, .player-layout { flex-direction: column; }
+  .master-sidebar, .player-sidebar { width: 100%; height: auto; border-right: none; border-bottom: 2px solid var(--gold-dark); }
+  .player-list { max-height: 150px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     TRANSITION OVERLAY
+═══════════════════════════════════════════ -->
+<div id="transition-overlay">
+  <div class="transition-gears">
+    <svg class="gear-svg fast" viewBox="0 0 100 100" width="80" height="80"><use href="#gear-icon"/></svg>
+    <span style="font-family:'Cinzel Decorative',serif;color:var(--gold);font-size:1.2rem;letter-spacing:4px;">VALVE</span>
+    <svg class="gear-svg reverse fast" viewBox="0 0 100 100" width="80" height="80"><use href="#gear-icon"/></svg>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SVG DEFS (shared icons)
+═══════════════════════════════════════════ -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <defs>
+    <!-- Gear -->
+    <symbol id="gear-icon" viewBox="0 0 100 100">
+      <path d="M43.2 5l-3 10.5A35 35 0 0030 20.3L19.3 17 10 30l8 7.5A35 35 0 0017 50a35 35 0 001 7.5L9 66l9.3 13 10.7-3.3A35 35 0 0040 80.7L43 91h14l3-10.3a35 35 0 0010.3-5.7L81 78.5 90 65.5l-8-7.5A35 35 0 0083 50a35 35 0 00-1-7.5L91 34 81.7 21 71 24.3A35 35 0 0060.3 18.7L57.2 8z"/>
+      <circle cx="50" cy="50" r="14"/>
+    </symbol>
+    <!-- Compass -->
+    <symbol id="compass-icon" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="45" fill="none" stroke-width="4"/>
+      <polygon points="50,10 55,50 50,55 45,50"/>
+      <polygon points="50,90 45,50 50,45 55,50" opacity="0.5"/>
+      <circle cx="50" cy="50" r="4"/>
+    </symbol>
+    <!-- Shield -->
+    <symbol id="shield-icon" viewBox="0 0 100 100">
+      <path d="M50 5L10 20v35c0 25 20 38 40 42 20-4 40-17 40-42V20z"/>
+    </symbol>
+    <!-- Book -->
+    <symbol id="book-icon" viewBox="0 0 100 100">
+      <rect x="15" y="10" width="70" height="80" rx="4"/>
+      <line x1="50" y1="10" x2="50" y2="90" stroke-width="2"/>
+      <path d="M50 10 Q35 25 15 20"/>
+      <path d="M50 10 Q65 25 85 20"/>
+    </symbol>
+    <!-- Eye (live view) -->
+    <symbol id="eye-icon" viewBox="0 0 100 100">
+      <path d="M10 50 Q50 15 90 50 Q50 85 10 50z"/>
+      <circle cx="50" cy="50" r="14"/>
+      <circle cx="50" cy="50" r="6"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- ═══════════════════════════════════════════
+     BACKGROUND GEARS
+═══════════════════════════════════════════ -->
+<div class="bg-gears">
+  <svg class="bg-gear bg-gear-1" viewBox="0 0 100 100"><use href="#gear-icon"/></svg>
+  <svg class="bg-gear bg-gear-2" viewBox="0 0 100 100"><use href="#gear-icon"/></svg>
+  <svg class="bg-gear bg-gear-3" viewBox="0 0 100 100"><use href="#gear-icon"/></svg>
+</div>
+
+<!-- Steam particles -->
+<div class="steam-particle" style="left:15%;top:80%;animation-delay:0s;animation-duration:5s;"></div>
+<div class="steam-particle" style="left:40%;top:70%;animation-delay:1.5s;animation-duration:6s;"></div>
+<div class="steam-particle" style="left:70%;top:85%;animation-delay:3s;animation-duration:4s;"></div>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN: LANDING
+═══════════════════════════════════════════ -->
+<section id="screen-landing" class="screen active">
+
+  <header class="vtt-header">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <svg class="gear-svg slow" viewBox="0 0 100 100" width="28" height="28"><use href="#gear-icon"/></svg>
+      <div class="header-logo">VALVE <span>VTT</span></div>
+      <svg class="gear-svg reverse slow" viewBox="0 0 100 100" width="28" height="28"><use href="#gear-icon"/></svg>
+    </div>
+    <div style="font-family:'Special Elite',monospace;font-size:0.65rem;color:var(--gold-dark);letter-spacing:3px;">
+      SISTEMA DE JOGO VIRTUAL
+    </div>
+  </header>
+
+  <!-- LETTER -->
+  <div class="letter-container" id="letterContainer">
+    <div class="envelope-wrap">
+      <div class="envelope">
+        <!-- Flap / wax seal -->
+        <div class="envelope-flap" id="envelopeFlap" onclick="toggleLetter()">
+          <div class="wax-seal" id="waxSeal">V</div>
+        </div>
+
+        <!-- Letter content -->
+        <div class="letter-body" id="letterBody">
+          <div class="letter-paper">
+            <p class="letter-greeting">Saudações, aventureiro,</p>
+            <div class="ornament-divider">
+              <svg class="ornament-divider-icon gear-svg" viewBox="0 0 100 100" width="16" height="16"><use href="#gear-icon"/></svg>
+            </div>
+            <h2 class="letter-title">Seja bem-vindo à Valve</h2>
+            <p class="letter-text">
+              Este sítio foi desenvolvido com o propósito simples e direto de facilitar nossas sessões de
+              RPG, ajudando tanto jogadores quanto mestres a organizarem suas mesas e histórias com mais
+              clareza e fluidez.
+            </p>
+            <p class="letter-text">
+              Esperamos que as ferramentas aqui disponíveis tornem cada sessão mais prática e agradável,
+              permitindo que o foco permaneça no que realmente importa — jogar, criar e compartilhar boas
+              histórias entre amigos.
+            </p>
+            <p class="letter-text">
+              Desejamos boa sorte nas sessões que estão por vir e que suas aventuras sejam proveitosas.
+            </p>
+            <div class="ornament-divider">
+              <svg class="ornament-divider-icon gear-svg" viewBox="0 0 100 100" width="16" height="16"><use href="#gear-icon"/></svg>
+            </div>
+            <p class="letter-sign">Com apreço,<br><em>Kammih e Rafa</em></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-toggle-letter" onclick="toggleLetter()" id="btnToggleLetter">
+      <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3l5 5H7z"/></svg>
+      <span id="toggleLabel">ABRIR CARTA</span>
+    </button>
+  </div>
+
+  <!-- MAIN BUTTONS -->
+  <div class="landing-buttons">
+    <!-- JOGADOR -->
+    <button class="btn-main" onclick="goTo('player')">
+      <div class="rivet rivet-tl"></div>
+      <div class="rivet rivet-tr"></div>
+      <div class="rivet rivet-bl"></div>
+      <div class="rivet rivet-br"></div>
+      <svg class="btn-main-icon" viewBox="0 0 100 100">
+        <use href="#compass-icon" fill="var(--gold)"/>
+      </svg>
+      <div>
+        <div class="btn-main-label">JOGADOR</div>
+        <div class="btn-main-sub">ENTRAR NA SESSÃO</div>
+      </div>
+    </button>
+
+    <!-- MESTRE -->
+    <button class="btn-main" onclick="goTo('master')">
+      <div class="rivet rivet-tl"></div>
+      <div class="rivet rivet-tr"></div>
+      <div class="rivet rivet-bl"></div>
+      <div class="rivet rivet-br"></div>
+      <svg class="btn-main-icon" viewBox="0 0 100 100">
+        <use href="#shield-icon" fill="var(--gold)"/>
+      </svg>
+      <div>
+        <div class="btn-main-label">MESTRE</div>
+        <div class="btn-main-sub">CRIAR SESSÃO</div>
+      </div>
+    </button>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN: PLAYER ENTRY
+═══════════════════════════════════════════ -->
+<section id="screen-player" class="screen">
+  <header class="vtt-header">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <svg class="gear-svg slow" viewBox="0 0 100 100" width="24" height="24"><use href="#gear-icon"/></svg>
+      <div class="header-logo" style="font-size:1.2rem;">VALVE <span>VTT</span></div>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;">
+    <div class="entry-panel">
+      <svg class="panel-gear-top" viewBox="0 0 100 100"><use href="#gear-icon"/></svg>
+
+      <div class="rivet rivet-tl"></div>
+      <div class="rivet rivet-tr"></div>
+      <div class="rivet rivet-bl"></div>
+      <div class="rivet rivet-br"></div>
+
+      <div class="panel-title">JOGADOR</div>
+      <div class="panel-subtitle">ACESSO A SESSÃO</div>
+
+      <div class="field-group">
+        <label class="field-label" for="playerName">NOME DO PERSONAGEM</label>
+        <input class="field-input" type="text" id="playerName" placeholder="Ex: Capitão Ashford..." maxlength="40">
+        <div class="field-error" id="err-playerName">Insira o nome do personagem</div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="roomCode">CÓDIGO DA SALA</label>
+        <input class="field-input" type="text" id="roomCode" placeholder="Ex: VALVE-4821" maxlength="12" style="text-transform:uppercase;letter-spacing:4px;">
+        <div class="field-error" id="err-roomCode">Insira o código da sala</div>
+      </div>
+
+      <button class="btn-action" onclick="joinRoom()">
+        EMBARCAR NA SESSÃO
+      </button>
+
+      <button class="btn-back" onclick="goTo('landing')">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></svg>
+        RETORNAR
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN: MASTER ENTRY
+═══════════════════════════════════════════ -->
+<section id="screen-master" class="screen">
+  <header class="vtt-header">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <svg class="gear-svg slow" viewBox="0 0 100 100" width="24" height="24"><use href="#gear-icon"/></svg>
+      <div class="header-logo" style="font-size:1.2rem;">VALVE <span>VTT</span></div>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;">
+    <div class="entry-panel">
+      <svg class="panel-gear-top" viewBox="0 0 100 100"><use href="#gear-icon"/></svg>
+
+      <div class="rivet rivet-tl"></div>
+      <div class="rivet rivet-tr"></div>
+      <div class="rivet rivet-bl"></div>
+      <div class="rivet rivet-br"></div>
+
+      <div class="panel-title">MESTRE</div>
+      <div class="panel-subtitle">CRIAR NOVA SESSÃO</div>
+
+      <div class="field-group">
+        <label class="field-label" for="masterName">SEU NOME</label>
+        <input class="field-input" type="text" id="masterName" placeholder="Ex: Mestre Theron..." maxlength="40">
+        <div class="field-error" id="err-masterName">Insira seu nome</div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="sessionName">NOME DA SESSÃO</label>
+        <input class="field-input" type="text" id="sessionName" placeholder="Ex: A Máquina de Vapor..." maxlength="60">
+        <div class="field-error" id="err-sessionName">Insira o nome da sessão</div>
+      </div>
+
+      <button class="btn-action" onclick="createRoom()">
+        FORJAR A SESSÃO
+      </button>
+
+      <button class="btn-back" onclick="goTo('landing')">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></svg>
+        RETORNAR
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN: MASTER ROOM
+═══════════════════════════════════════════ -->
+<section id="screen-master-room" class="screen">
+  <header class="vtt-header">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <svg class="gear-svg slow" viewBox="0 0 100 100" width="22" height="22"><use href="#gear-icon"/></svg>
+      <div class="header-logo" style="font-size:1.1rem;">VALVE <span>VTT</span></div>
+      <svg class="gear-svg reverse slow" viewBox="0 0 100 100" width="22" height="22"><use href="#gear-icon"/></svg>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-family:'Special Elite',monospace;font-size:0.65rem;color:var(--gold-dark);letter-spacing:2px;" id="masterHeaderName"></span>
+      <button class="btn-back" onclick="leaveRoom()" style="margin:0;color:var(--copper-dark);font-size:0.6rem;">ENCERRAR SESSÃO</button>
+    </div>
+  </header>
+
+  <div class="master-layout">
+
+    <!-- Sidebar -->
+    <aside class="master-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">PAINEL DO MESTRE</div>
+        <div class="session-name-display" id="sidebarSessionName"></div>
+        <div class="sidebar-code">
+          <span class="code-label">CÓDIGO:</span>
+          <span class="code-value" id="displayRoomCode"></span>
+          <button class="btn-copy-code" onclick="copyCode()">COPIAR</button>
+        </div>
+      </div>
+
+      <div class="connection-bar">
+        <div class="conn-dot" id="connDotMaster"></div>
+        <span class="conn-label" id="connLabelMaster">CONECTADO</span>
+        <span class="conn-count" id="connCountMaster">0 JOGADORES</span>
+      </div>
+
+      <div class="player-list" id="masterPlayerList">
+        <div class="no-players" id="noPlayersMsg">
+          Aguardando jogadores...<br><br>
+          Compartilhe o código acima para convidar.
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="master-content">
+      <div class="content-header">
+        <div>
+          <div class="viewing-label">VISUALIZANDO FICHA DE</div>
+          <div class="viewing-name" id="viewingPlayerName">—</div>
+        </div>
+        <div class="live-badge">
+          <div class="live-dot"></div>
+          <span class="live-text">SINCRONIZADO</span>
+        </div>
+      </div>
+
+      <div class="ficha-frame-wrap" id="masterFichaWrap">
+        <div class="no-player-selected" id="noPlayerSelected">
+          <svg viewBox="0 0 100 100"><use href="#eye-icon"/></svg>
+          <p>Selecione um jogador ao lado</p>
+        </div>
+        <!-- Master view: rendered from live data, no iframe cross-origin issues -->
+        <div id="masterFichaDisplay" style="display:none;width:100%;height:100%;overflow-y:auto;padding:0;"></div>
+      </div>
+    </main>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN: PLAYER ROOM
+═══════════════════════════════════════════ -->
+<section id="screen-player-room" class="screen">
+  <header class="vtt-header">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <svg class="gear-svg slow" viewBox="0 0 100 100" width="22" height="22"><use href="#gear-icon"/></svg>
+      <div class="header-logo" style="font-size:1.1rem;">VALVE <span>VTT</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-family:'Special Elite',monospace;font-size:0.65rem;color:var(--gold-dark);letter-spacing:2px;" id="playerHeaderName"></span>
+      <button class="btn-back" onclick="leaveRoom()" style="margin:0;color:var(--copper-dark);font-size:0.6rem;">SAIR</button>
+    </div>
+  </header>
+
+  <div class="player-layout">
+    <aside class="player-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">SESSÃO</div>
+        <div class="room-info-row">
+          <span class="room-info-label">NOME</span>
+          <span class="room-info-value" id="playerSessionNameDisplay"></span>
+        </div>
+        <div class="room-info-row">
+          <span class="room-info-label">CÓDIGO</span>
+          <span class="room-info-value" id="playerRoomCodeDisplay" style="letter-spacing:3px;color:var(--gold);"></span>
+        </div>
+      </div>
+
+      <div class="connection-bar" style="margin:0 16px 0;border:1px solid rgba(201,168,76,0.1);padding:8px 12px;">
+        <div class="conn-dot" id="connDotPlayer"></div>
+        <span class="conn-label" id="connLabelPlayer" style="font-size:0.55rem;">CONECTADO</span>
+      </div>
+
+      <div class="online-list">
+        <div class="online-list-title">ONLINE</div>
+        <div id="playerOnlineList"></div>
+      </div>
+    </aside>
+
+    <main class="player-main">
+      <iframe
+        class="ficha-iframe"
+        id="playerFichaFrame"
+        src="https://dede3phc22dgx.cloudfront.net/creao2/c151e709-2782-40fc-aedf-fd03577c8c6a/c8c1c3e0-4061-70ea-a388-4ad5d7a89d92/e2ccd40a-fcc2-4ef3-bb64-5f14c944062b/ficha-rpg-valve-mobile.html"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        style="flex:1;width:100%;height:100%;border:none;"
+      ></iframe>
+    </main>
+  </div>
+</section>
+
+<!-- ══ PERFORMANCE TOGGLE ══ -->
+<label class="perf-toggle" title="Ativar para dispositivos mais lentos">
+  <input type="checkbox" class="perf-checkbox" id="perfMode" onchange="togglePerfMode(this)">
+  <span class="perf-toggle-label">MODO PC FRACO</span>
+</label>
+
+<!-- ══ TOAST CONTAINER ══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════ -->
+<script>
+// ── CONFIG ─────────────────────────────────────────
+const SERVER_URL = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host;
+
+// ── STATE ───────────────────────────────────────────
+let ws = null;
+let state = {
+  role: null, name: '', roomCode: '', sessionName: '',
+  players: {}, selectedPlayer: null, isConnected: false,
+  fichaCache: {},       // { [playerId]: fichaData }  — cache for master
+  fichaInterval: null,  // player sync interval
+};
+
+// ── LETTER TOGGLE ───────────────────────────────────
+let letterOpen = false;
+function toggleLetter() {
+  letterOpen = !letterOpen;
+  document.getElementById('envelopeFlap').classList.toggle('open', letterOpen);
+  document.getElementById('letterBody').classList.toggle('open', letterOpen);
+  document.getElementById('toggleLabel').textContent = letterOpen ? 'FECHAR CARTA' : 'ABRIR CARTA';
+}
+
+// ── NAVIGATION ──────────────────────────────────────
+function goTo(screen) {
+  doTransition(() => {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const map = { landing:'screen-landing', player:'screen-player', master:'screen-master', 'master-room':'screen-master-room', 'player-room':'screen-player-room' };
+    const t = map[screen];
+    if (t) document.getElementById(t).classList.add('active');
+  });
+}
+function doTransition(cb) {
+  const ov = document.getElementById('transition-overlay');
+  ov.classList.add('active');
+  setTimeout(() => { cb(); setTimeout(() => ov.classList.remove('active'), 400); }, 350);
+}
+
+// ── PERFORMANCE MODE ────────────────────────────────
+function togglePerfMode(cb) { document.body.classList.toggle('perf-mode', cb.checked); }
+
+// ── TOAST ───────────────────────────────────────────
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── COPY CODE ───────────────────────────────────────
+function copyCode() {
+  navigator.clipboard.writeText(state.roomCode).then(() => toast('Código copiado!', 'success'));
+}
+
+// ── VALIDATION ──────────────────────────────────────
+function validate(fieldId, errorId, ok) {
+  document.getElementById(errorId).classList.toggle('visible', !ok);
+  return ok;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── CREATE ROOM ─────────────────────────────────────
+function createRoom() {
+  const masterName  = document.getElementById('masterName').value.trim();
+  const sessionName = document.getElementById('sessionName').value.trim();
+  let ok = true;
+  ok = validate('masterName',  'err-masterName',  masterName.length > 0) && ok;
+  ok = validate('sessionName', 'err-sessionName', sessionName.length > 0) && ok;
+  if (!ok) return;
+  state.role = 'master'; state.name = masterName; state.sessionName = sessionName;
+  connectWS(() => sendWS({ type: 'create_room', masterName, sessionName }));
+}
+
+// ── JOIN ROOM ───────────────────────────────────────
+function joinRoom() {
+  const playerName = document.getElementById('playerName').value.trim();
+  const roomCode   = document.getElementById('roomCode').value.trim().toUpperCase();
+  let ok = true;
+  ok = validate('playerName', 'err-playerName', playerName.length > 0) && ok;
+  ok = validate('roomCode',   'err-roomCode',   roomCode.length >= 4)   && ok;
+  if (!ok) return;
+  state.role = 'player'; state.name = playerName; state.roomCode = roomCode;
+  connectWS(() => sendWS({ type: 'join_room', playerName, roomCode }));
+}
+
+// ── LEAVE ROOM ──────────────────────────────────────
+function leaveRoom() {
+  if (state.fichaInterval) { clearInterval(state.fichaInterval); state.fichaInterval = null; }
+  if (ws) { ws.close(); ws = null; }
+  localStorage.removeItem('valve_session');
+  state = { role:null, name:'', roomCode:'', sessionName:'', players:{}, selectedPlayer:null, isConnected:false, fichaCache:{}, fichaInterval:null };
+  goTo('landing');
+}
+
+// ── WEBSOCKET ───────────────────────────────────────
+function connectWS(onOpen) {
+  if (ws && ws.readyState === WebSocket.OPEN) { if(onOpen) onOpen(); return; }
+  try { ws = new WebSocket(SERVER_URL); }
+  catch(e) { toast('Não foi possível conectar ao servidor.', 'error'); return; }
+
+  ws.onopen    = () => { state.isConnected = true; updateConnUI(true); if(onOpen) onOpen(); };
+  ws.onmessage = (ev) => { try { handleMessage(JSON.parse(ev.data)); } catch(e){} };
+  ws.onclose   = () => { state.isConnected = false; updateConnUI(false); if(state.roomCode) setTimeout(() => connectWS(null), 4000); };
+  ws.onerror   = () => toast('Erro de conexão.', 'error');
+}
+
+function sendWS(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+
+function updateConnUI(connected) {
+  ['Master','Player'].forEach(role => {
+    const dot   = document.getElementById(`connDot${role}`);
+    const label = document.getElementById(`connLabel${role}`);
+    if(dot)   dot.classList.toggle('disconnected', !connected);
+    if(label) label.textContent = connected ? 'CONECTADO' : 'RECONECTANDO...';
+  });
+}
+
+// ── HANDLE SERVER MESSAGES ──────────────────────────
+function handleMessage(msg) {
+  switch(msg.type) {
+
+    case 'room_created':
+      state.roomCode = msg.roomCode; state.sessionName = msg.sessionName;
+      setupMasterUI(); goTo('master-room'); break;
+
+    case 'room_error':
+      toast(msg.message || 'Sala não encontrada.', 'error'); break;
+
+    case 'room_joined':
+      state.roomCode = msg.roomCode; state.sessionName = msg.sessionName;
+      setupPlayerUI(); goTo('player-room');
+      toast('Conectado à sessão: ' + msg.sessionName, 'success'); break;
+
+    case 'players_update':
+      state.players = msg.players || {};
+      renderPlayerList(); break;
+
+    case 'ficha_update':
+      // Master receives live ficha snapshot from a player
+      if (state.role === 'master') {
+        state.fichaCache[msg.playerId] = msg.fichaData;
+        // If this is the currently selected player, refresh the display
+        if (state.selectedPlayer === msg.playerId) {
+          renderMasterFicha(msg.playerId, msg.fichaData);
+        }
+      }
+      break;
+
+    case 'send_ficha':
+      // Server asks player to send their current ficha data now
+      if (state.role === 'player') sendCurrentFicha(); break;
+
+    case 'master_left':
+      toast('O Mestre encerrou a sessão.', 'error');
+      setTimeout(() => leaveRoom(), 2000); break;
+
+    case 'ping': sendWS({ type: 'pong' }); break;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  PLAYER — FICHA CAPTURE & SYNC
+// ══════════════════════════════════════════════════════
+
+function setupPlayerUI() {
+  document.getElementById('playerSessionNameDisplay').textContent = state.sessionName;
+  document.getElementById('playerRoomCodeDisplay').textContent    = state.roomCode;
+  document.getElementById('playerHeaderName').textContent         = state.name.toUpperCase();
+
+  // Start syncing ficha every 2.5 seconds
+  if (state.fichaInterval) clearInterval(state.fichaInterval);
+  state.fichaInterval = setInterval(() => {
+    if (state.isConnected) sendCurrentFicha();
+  }, 2500);
+
+  renderOnlineList([{ name: state.name }]);
+}
+
+function sendCurrentFicha() {
+  const iframe = document.getElementById('playerFichaFrame');
+  if (!iframe) return;
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc || doc.readyState !== 'complete') return;
+    const data = captureFichaFromDOM(doc);
+    sendWS({ type: 'ficha_data', fichaData: data });
+  } catch(e) {
+    // Cross-origin: won't work from external URL — fallback to postMessage
+    iframe.contentWindow.postMessage({ type: 'valve_get_ficha' }, '*');
+  }
+}
+
+// Capture all relevant fields from the ficha DOM
+function captureFichaFromDOM(doc) {
+  const data = {};
+
+  // All text inputs and textareas
+  doc.querySelectorAll('input[type="text"], input[type="number"], input:not([type]), textarea').forEach(el => {
+    const key = el.id || el.name || el.placeholder || el.className;
+    if (key) data[key] = el.value;
+  });
+
+  // All contenteditable elements
+  doc.querySelectorAll('[contenteditable]').forEach((el, i) => {
+    const key = el.id || el.dataset?.field || ('content_' + i);
+    data[key] = el.innerText || el.textContent;
+  });
+
+  // Specific labeled spans / divs with values (Valve ficha specific)
+  doc.querySelectorAll('[data-field], [data-stat], [data-value]').forEach(el => {
+    const key = el.dataset.field || el.dataset.stat || el.dataset.value;
+    if (key) data[key] = el.textContent.trim();
+  });
+
+  // Selects
+  doc.querySelectorAll('select').forEach(el => {
+    const key = el.id || el.name;
+    if (key) data[key] = el.value;
+  });
+
+  // Checkboxes
+  doc.querySelectorAll('input[type="checkbox"]').forEach(el => {
+    const key = el.id || el.name;
+    if (key) data[key] = el.checked;
+  });
+
+  // Try to get displayed stat numbers (vida, insanidade, etc.) by text proximity
+  // Walk all elements looking for numeric displays
+  doc.querySelectorAll('.stat-value, .valor, .atual, .total, [class*="stat"], [class*="value"], [class*="valor"]').forEach((el, i) => {
+    const k = el.id || el.className.replace(/\s+/g,'_') + '_' + i;
+    data[k] = el.textContent.trim();
+  });
+
+  // Images (avatar)
+  const avatar = doc.querySelector('img[id], img.avatar, img.photo, #player-photo, #foto');
+  if (avatar && avatar.src && !avatar.src.startsWith('data:') === false) {
+    data['__avatar__'] = avatar.src;
+  }
+
+  // Tab / page name
+  const activeTab = doc.querySelector('.tab.active, .aba.active, [class*="tab"][class*="active"]');
+  if (activeTab) data['__activeTab__'] = activeTab.textContent.trim();
+
+  data['__captured__'] = Date.now();
+  return data;
+}
+
+// Fallback: listen for postMessage from iframe
+window.addEventListener('message', (ev) => {
+  if (ev.data?.type === 'valve_ficha_data') {
+    sendWS({ type: 'ficha_data', fichaData: ev.data.data });
+  }
+});
+
+// ══════════════════════════════════════════════════════
+//  MASTER — PLAYER LIST & FICHA DISPLAY
+// ══════════════════════════════════════════════════════
+
+function setupMasterUI() {
+  document.getElementById('displayRoomCode').textContent    = state.roomCode;
+  document.getElementById('sidebarSessionName').textContent = state.sessionName;
+  document.getElementById('masterHeaderName').textContent   = 'MESTRE: ' + state.name.toUpperCase();
+  renderPlayerList();
+}
+
+function renderPlayerList() {
+  const list    = document.getElementById('masterPlayerList');
+  const noMsg   = document.getElementById('noPlayersMsg');
+  const countEl = document.getElementById('connCountMaster');
+  const players = Object.values(state.players);
+
+  if (countEl) countEl.textContent = players.length + ' JOGADOR' + (players.length !== 1 ? 'ES' : '');
+
+  if (players.length === 0) {
+    if (noMsg) { noMsg.style.display = 'block'; if(!list.contains(noMsg)) list.appendChild(noMsg); }
+    return;
+  }
+  if (noMsg) noMsg.style.display = 'none';
+
+  list.querySelectorAll('.player-item').forEach(el => el.remove());
+
+  players.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'player-item' + (state.selectedPlayer === p.id ? ' active' : '');
+    item.dataset.id = p.id;
+    item.innerHTML =
+      '<div class="player-avatar">' + (p.name||'?')[0].toUpperCase() + '</div>' +
+      '<div class="player-info">' +
+        '<div class="player-name">' + escapeHtml(p.name) + '</div>' +
+        '<div class="player-status">' + (p.online ? 'ONLINE' : 'OFFLINE') + '</div>' +
+      '</div>' +
+      '<div class="player-online-dot' + (p.online ? '' : ' offline') + '"></div>';
+    item.onclick = () => selectPlayer(p.id, p.name);
+    list.appendChild(item);
+  });
+
+  renderOnlineList(players);
+}
+
+function renderOnlineList(people) {
+  const el = document.getElementById('playerOnlineList');
+  if (!el) return;
+  el.innerHTML = people.map(p =>
+    '<div class="online-person"><div class="player-online-dot"></div>' + escapeHtml(p.name||p) + '</div>'
+  ).join('');
+}
+
+// ── SELECT PLAYER ────────────────────────────────────
+function selectPlayer(playerId, playerName) {
+  state.selectedPlayer = playerId;
+  document.getElementById('viewingPlayerName').textContent = playerName;
+  document.getElementById('noPlayerSelected').style.display = 'none';
+  document.getElementById('masterFichaDisplay').style.display = 'block';
+
+  // Highlight
+  document.querySelectorAll('.player-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === playerId);
+  });
+
+  // Show cached data immediately if available
+  if (state.fichaCache[playerId]) {
+    renderMasterFicha(playerId, state.fichaCache[playerId]);
+  } else {
+    document.getElementById('masterFichaDisplay').innerHTML = buildFichaPlaceholder();
+  }
+
+  // Ask server to request fresh data from player
+  sendWS({ type: 'request_ficha', playerId });
+}
+
+// ── RENDER MASTER FICHA VIEW ─────────────────────────
+function renderMasterFicha(playerId, data) {
+  if (!data || typeof data !== 'object') return;
+  const container = document.getElementById('masterFichaDisplay');
+  if (!container || state.selectedPlayer !== playerId) return;
+
+  // Extract readable fields — filter out internal keys and empties
+  const entries = Object.entries(data).filter(([k, v]) =>
+    !k.startsWith('__') && v !== '' && v !== null && v !== undefined && v !== false
+  );
+
+  if (entries.length === 0) {
+    container.innerHTML = buildFichaPlaceholder('Aguardando dados da ficha...');
+    return;
+  }
+
+  // Group fields by rough categories matching the Valve RPG ficha
+  const statFields    = {};
+  const infoFields    = {};
+  const skillFields   = {};
+  const otherFields   = {};
+
+  // Keys that look like stats (números)
+  const statKeywords  = ['vida','vit','hp','insanidade','armadura','nex','corrupcao','corrup','level','nivel','age','altura','age'];
+  const skillKeywords = ['ataque','artes','arma','atirar','gnosis','esquivar','defender','contra','vontade','intelig','intuicao','sorte','procurar','escutar','dominio','atletismo','furtividade','velocidade','correr','constituicao','destreza','forca','natacao','negociar','psicolog','intimidar','acalmar','seduzir','imobilizar','adestramento','sobrevivencia','navegacao','engenharia','alquimia','medicina'];
+  const infoKeywords  = ['nome','name','idade','altura','nivel','origem','trilha','raca','race'];
+
+  entries.forEach(([k, v]) => {
+    const kl = k.toLowerCase();
+    if (skillKeywords.some(s => kl.includes(s))) skillFields[k] = v;
+    else if (statKeywords.some(s => kl.includes(s))) statFields[k] = v;
+    else if (infoKeywords.some(s => kl.includes(s))) infoFields[k] = v;
+    else otherFields[k] = v;
+  });
+
+  const ts = data.__captured__ ? new Date(data.__captured__).toLocaleTimeString('pt-BR') : '';
+
+  let html = `
+  <div style="
+    padding: 24px 28px;
+    font-family: 'Special Elite', monospace;
+    color: var(--parchment);
+    min-height: 100%;
+    background: linear-gradient(180deg, rgba(13,10,3,0.8) 0%, rgba(8,6,2,0.9) 100%);
+  ">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid rgba(201,168,76,0.2);">
+      <div>
+        <div style="font-family:'Cinzel',serif;font-size:0.65rem;color:var(--gold-dark);letter-spacing:3px;">FICHA DO PERSONAGEM</div>
+        <div style="font-family:'Cinzel Decorative',serif;font-size:1rem;color:var(--gold);margin-top:2px;">${escapeHtml(state.players[playerId]?.name || '')}</div>
+      </div>
+      <div style="font-size:0.55rem;color:var(--gold-dark);opacity:0.6;">ATUALIZADO ${escapeHtml(ts)}</div>
+    </div>`;
+
+  // Stats block
+  if (Object.keys(statFields).length > 0) {
+    html += `<div style="margin-bottom:20px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.6rem;color:var(--gold-dark);letter-spacing:3px;margin-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.1);padding-bottom:6px;">ATRIBUTOS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;">`;
+    Object.entries(statFields).forEach(([k, v]) => {
+      html += `<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(201,168,76,0.15);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:0.6rem;color:var(--gold-dark);text-transform:uppercase;letter-spacing:1px;">${escapeHtml(k.replace(/_/g,' ').substring(0,20))}</span>
+        <span style="font-size:0.85rem;color:var(--gold);font-weight:bold;">${escapeHtml(String(v).substring(0,20))}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Info block
+  if (Object.keys(infoFields).length > 0) {
+    html += `<div style="margin-bottom:20px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.6rem;color:var(--gold-dark);letter-spacing:3px;margin-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.1);padding-bottom:6px;">INFORMAÇÕES</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;">`;
+    Object.entries(infoFields).forEach(([k, v]) => {
+      html += `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(201,168,76,0.05);">
+        <span style="font-size:0.55rem;color:var(--gold-dark);text-transform:uppercase;min-width:70px;">${escapeHtml(k.replace(/_/g,' ').substring(0,18))}</span>
+        <span style="font-size:0.75rem;color:var(--parchment-dark);">${escapeHtml(String(v).substring(0,40))}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Skills block
+  if (Object.keys(skillFields).length > 0) {
+    html += `<div style="margin-bottom:20px;">
+      <div style="font-family:'Cinzel',serif;font-size:0.6rem;color:var(--gold-dark);letter-spacing:3px;margin-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.1);padding-bottom:6px;">PERÍCIAS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px;">`;
+    Object.entries(skillFields).forEach(([k, v]) => {
+      const num = parseInt(v);
+      const hasBar = !isNaN(num) && num >= 0 && num <= 100;
+      html += `<div style="display:flex;gap:8px;align-items:center;padding:5px 8px;background:rgba(0,0,0,0.2);">
+        <span style="font-size:0.55rem;color:var(--gold-dark);flex:1;text-transform:uppercase;letter-spacing:0.5px;">${escapeHtml(k.replace(/_/g,' ').substring(0,20))}</span>
+        ${hasBar ? `<div style="width:50px;height:4px;background:rgba(255,255,255,0.1);position:relative;"><div style="position:absolute;left:0;top:0;height:100%;width:${num}%;background:var(--gold);"></div></div>` : ''}
+        <span style="font-size:0.75rem;color:var(--gold);min-width:24px;text-align:right;">${escapeHtml(String(v).substring(0,10))}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Other fields
+  const otherEntries = Object.entries(otherFields).slice(0, 30);
+  if (otherEntries.length > 0) {
+    html += `<div>
+      <div style="font-family:'Cinzel',serif;font-size:0.6rem;color:var(--gold-dark);letter-spacing:3px;margin-bottom:10px;border-bottom:1px solid rgba(201,168,76,0.1);padding-bottom:6px;">OUTROS</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px;">`;
+    otherEntries.forEach(([k, v]) => {
+      if (String(v).length > 100) return; // skip huge blobs
+      html += `<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(201,168,76,0.05);">
+        <span style="font-size:0.55rem;color:var(--gold-dark);text-transform:uppercase;min-width:80px;">${escapeHtml(k.replace(/_/g,' ').substring(0,20))}</span>
+        <span style="font-size:0.7rem;color:var(--parchment-dark);">${escapeHtml(String(v).substring(0,60))}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function buildFichaPlaceholder(msg) {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;opacity:0.3;padding:40px;">
+    <svg viewBox="0 0 100 100" width="60" height="60" fill="var(--gold)"><use href="#eye-icon"/></svg>
+    <p style="font-family:'IM Fell English',serif;font-style:italic;color:var(--gold);font-size:0.9rem;letter-spacing:2px;text-align:center;">${msg || 'Aguardando dados...'}</p>
+  </div>`;
+}
+
+// ── PERSIST SESSION ──────────────────────────────────
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('valve_session');
+  if (saved) {
+    try {
+      const s = JSON.parse(saved);
+      if (s.roomCode && s.role) {
+        Object.assign(state, s);
+        connectWS(() => sendWS({ type: 'reconnect', role: s.role, name: s.name, roomCode: s.roomCode }));
+      }
+    } catch(e) {}
+  }
+});
+
+setInterval(() => {
+  if (state.roomCode) {
+    localStorage.setItem('valve_session', JSON.stringify({
+      role: state.role, name: state.name,
+      roomCode: state.roomCode, sessionName: state.sessionName
+    }));
+  }
+}, 3000);
+</script>
+</body>
+</html>
