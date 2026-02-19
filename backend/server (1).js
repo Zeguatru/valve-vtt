@@ -334,3 +334,12 @@ server.listen(PORT, () => {
   console.log(`  Acesse: http://localhost:${PORT}`);
   console.log('══════════════════════════════════════\n');
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('ERRO FATAL:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('PROMISE REJEITADA:', reason);
+});
