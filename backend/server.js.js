@@ -327,7 +327,7 @@ setInterval(() => {
 }, 3600000);
 
 // ── INICIAR ────────────────────────────────────────────
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log('\n══════════════════════════════════════');
   console.log('  VALVE VTT — Servidor Ativo');
   console.log(`  Porta: ${PORT}`);
